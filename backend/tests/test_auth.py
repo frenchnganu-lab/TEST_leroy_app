@@ -83,10 +83,15 @@ def test_all_data_queries_are_scoped_to_authenticated_designer(monkeypatch):
             if 'WHERE telegram_id' in query:
                 assert params == (123456,)
                 return Result({'designer_id': 'OWN', 'full_name': 'Test', 'level_code': 'bronze'})
+            if 'SELECT rub_per_lr' in query:
+                assert params is None  # Global program rate; contains no designer data.
+                return Result({'rub_per_lr': 0.2})
             if query.startswith('SELECT'):
                 assert params == ('OWN',)
                 if 'SUM(amount)' in query:
                     return Result({'commission_rub': 0, 'bonus_lr': 0})
+                if 'AS total_amount_rub' in query:
+                    return Result({'active': 35, 'delivered': 12, 'total': 47, 'total_amount_rub': 999000})
                 if 'COUNT(*)' in query:
                     return Result({'count': 0})
                 return Result(many=[])
@@ -98,4 +103,8 @@ def test_all_data_queries_are_scoped_to_authenticated_designer(monkeypatch):
     response = TestClient(app).get('/api/cabinet?designer_id=OTHER', headers={'Authorization': 'tma signed'})
     assert response.status_code == 200
     assert response.json()['designer']['designer_id'] == 'OWN'
-    assert len([q for q, p in queries if q.startswith('SELECT')]) == 5
+    assert len([q for q, p in queries if q.startswith('SELECT')]) == 7
+    assert response.json()['project_summary']['total'] == 47
+    assert response.json()['projects'] == []
+    assert response.json()['rub_per_lr'] == 0.2
+    assert response.json()['loyalty'] is None

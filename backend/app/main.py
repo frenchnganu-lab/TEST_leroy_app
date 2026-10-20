@@ -4,7 +4,7 @@ from pathlib import Path
 
 import psycopg
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException, Response
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 from psycopg.rows import dict_row
 
@@ -32,7 +32,7 @@ def health():
 
 @app.get("/api/config")
 def config():
-    return {"demo_available": os.getenv("DEMO_MODE", "false").lower() == "true"}
+    return {"demo_available": os.getenv("DEMO_MODE", "false").strip().lower() == "true"}
 
 
 @app.get("/api/cabinet")
@@ -66,18 +66,32 @@ def cabinet(authorization: str | None = Header(default=None)):
                     "FROM public.ledger_entries WHERE designer_id = %s", (did,)
                 ).fetchone()
                 operations = conn.execute(
-                    "SELECT operation_type, currency, amount, event_at FROM public.ledger_entries "
-                    "WHERE designer_id = %s ORDER BY event_at DESC, entry_id DESC LIMIT 30", (did,)
+                    "SELECT e.operation_type, e.currency, e.amount, e.event_at, p.order_number "
+                    "FROM public.ledger_entries e LEFT JOIN public.projects p ON p.project_id = e.project_id "
+                    "WHERE e.designer_id = %s ORDER BY e.event_at DESC, e.entry_id DESC LIMIT 30", (did,)
                 ).fetchall()
                 projects = conn.execute(
-                    "SELECT order_number, amount_rub, status FROM public.projects "
+                    "SELECT order_number, amount_rub, status, delivered_at FROM public.projects "
                     "WHERE designer_id = %s ORDER BY created_at DESC, project_id DESC LIMIT 30", (did,)
                 ).fetchall()
+                # Dashboard totals cover every project, independently of the 30-row list.
+                project_summary = conn.execute(
+                    "SELECT COUNT(*) FILTER (WHERE status = 'in_progress') AS active, "
+                    "COUNT(*) FILTER (WHERE status = 'delivered') AS delivered, COUNT(*) AS total, "
+                    "COALESCE(SUM(amount_rub) FILTER (WHERE status <> 'cancelled'), 0) AS total_amount_rub "
+                    "FROM public.projects WHERE designer_id = %s", (did,)
+                ).fetchone()
+                rule = conn.execute(
+                    "SELECT rub_per_lr FROM public.reward_rules WHERE valid_from <= now() "
+                    "ORDER BY valid_from DESC, rule_version DESC LIMIT 1"
+                ).fetchone()
                 referrals = conn.execute(
                     "SELECT COUNT(*) AS count FROM public.designers WHERE invited_by = %s", (did,)
                 ).fetchone()["count"]
                 return {"designer": designer, "balance": balance, "operations": operations,
-                        "projects": projects, "referral_count": referrals, "test_mode": True}
+                        "projects": projects, "project_summary": project_summary,
+                        "rub_per_lr": rule["rub_per_lr"] if rule else None,
+                        "loyalty": None, "referral_count": referrals, "test_mode": True}
     except psycopg.Error:
         # Do not log DSNs, credentials, auth headers or database error messages.
         logger.error("Cabinet database request failed")

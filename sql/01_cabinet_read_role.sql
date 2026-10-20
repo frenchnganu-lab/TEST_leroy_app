@@ -8,13 +8,15 @@ DO $$ BEGIN
 END $$;
 GRANT CONNECT ON DATABASE postgres TO cabinet_reader;
 GRANT USAGE ON SCHEMA public TO cabinet_reader;
-GRANT SELECT ON public.designers, public.projects, public.ledger_entries TO cabinet_reader;
+GRANT SELECT ON public.designers, public.projects, public.ledger_entries, public.reward_rules TO cabinet_reader;
 DROP POLICY IF EXISTS cabinet_read_designers ON public.designers;
 CREATE POLICY cabinet_read_designers ON public.designers FOR SELECT TO cabinet_reader USING (true);
 DROP POLICY IF EXISTS cabinet_read_projects ON public.projects;
 CREATE POLICY cabinet_read_projects ON public.projects FOR SELECT TO cabinet_reader USING (true);
 DROP POLICY IF EXISTS cabinet_read_ledger ON public.ledger_entries;
 CREATE POLICY cabinet_read_ledger ON public.ledger_entries FOR SELECT TO cabinet_reader USING (true);
+DROP POLICY IF EXISTS cabinet_read_reward_rules ON public.reward_rules;
+CREATE POLICY cabinet_read_reward_rules ON public.reward_rules FOR SELECT TO cabinet_reader USING (true);
 ALTER ROLE cabinet_reader SET default_transaction_read_only = on;
 COMMIT;
 -- Set a strong unique password separately, not in this file or Git history:
