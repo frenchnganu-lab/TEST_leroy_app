@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 import os
+import ssl
 from pathlib import Path
 
 import psycopg
@@ -8,6 +9,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 from psycopg.rows import dict_row
+from psycopg.conninfo import conninfo_to_dict
 
 from .auth import verify_init_data
 
@@ -45,6 +47,15 @@ def database_failure_kind(exc):
         ("connection refused", "connection_refused"),
         ("invalid sslmode", "invalid_connection_string"),
         ("invalid uri", "invalid_connection_string"),
+        ("invalid connection option", "invalid_connection_string"),
+        ("ssl connection is required", "tls_required"),
+        ("wrong password", "password_rejected"),
+        ("server login has been failing", "pooler_login_failure"),
+        ("no pg_hba.conf entry", "database_access_rejected"),
+        ("network is unreachable", "network_unreachable"),
+        ("connection reset", "connection_reset"),
+        ("server closed the connection", "connection_closed"),
+        ("eof detected", "connection_closed"),
         ("missing \"=\"", "invalid_connection_string"),
         ("invalid percent-encoded token", "invalid_connection_string"),
     )
@@ -55,8 +66,41 @@ def database_failure_kind(exc):
 
 
 def log_database_failure(exc, phase):
-    logger.error("Cabinet database check failed: phase=%s category=%s",
-                 phase, database_failure_kind(exc))
+    state = getattr(exc, "sqlstate", None)
+    state = state if isinstance(state, str) and len(state) == 5 and state.isalnum() else "none"
+    markers = ("ssl", "certificate", "password", "tenant", "authentication",
+               "invalid", "connection", "timeout", "file", "permission", "encoding",
+               "sasl", "scram", "fatal", "eof", "resolve", "port")
+    message = str(exc).lower()
+    matched = ",".join(word for word in markers if word in message) or "none"
+    logger.error("Cabinet database check failed: phase=%s category=%s type=%s state=%s markers=%s",
+                 phase, database_failure_kind(exc), type(exc).__name__, state, matched)
+
+
+def log_database_configuration(database):
+    try:
+        params = conninfo_to_dict(database)
+    except psycopg.Error:
+        logger.error("Cabinet database configuration: invalid_connection_string")
+        return
+    mode_ok = params.get("sslmode") == "verify-full"
+    role_ok = params.get("user", "").startswith("cabinet_reader.")
+    port_ok = str(params.get("port", "")) == "5432"
+    password_set = bool(params.get("password"))
+    cert = params.get("sslrootcert") or os.getenv("PGSSLROOTCERT")
+    cert_status = "not_configured"
+    if cert:
+        try:
+            ssl.create_default_context(cafile=cert)
+            cert_status = "loaded"
+        except FileNotFoundError:
+            cert_status = "missing"
+        except PermissionError:
+            cert_status = "unreadable"
+        except (ssl.SSLError, OSError):
+            cert_status = "invalid"
+    logger.warning("Cabinet database configuration: role_ok=%s port_ok=%s password_set=%s sslmode_ok=%s certificate=%s",
+                   role_ok, port_ok, password_set, mode_ok, cert_status)
 
 
 def check_database_startup():
@@ -64,6 +108,7 @@ def check_database_startup():
     if not database:
         logger.warning("Cabinet database startup check skipped: database_not_configured")
         return
+    log_database_configuration(database)
     phase = "connect"
     try:
         with psycopg.connect(database, connect_timeout=5, row_factory=dict_row) as conn:
