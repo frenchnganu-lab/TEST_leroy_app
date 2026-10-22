@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 import os
 from pathlib import Path
 
@@ -11,8 +12,78 @@ from psycopg.rows import dict_row
 from .auth import verify_init_data
 
 load_dotenv()
-app = FastAPI(title="LEROY Designer Cabinet", docs_url=None, redoc_url=None, openapi_url=None)
 logger = logging.getLogger(__name__)
+
+# Diagnostics log only fixed categories and query names, never driver messages.
+_DATABASE_CHECKS = (
+    ("designers", "SELECT designer_id, full_name, level_code, telegram_id, is_active, invited_by FROM public.designers LIMIT 0"),
+    ("projects", "SELECT project_id, designer_id, order_number, amount_rub, status, delivered_at, created_at FROM public.projects LIMIT 0"),
+    ("ledger", "SELECT entry_id, designer_id, project_id, operation_type, currency, amount, event_at FROM public.ledger_entries LIMIT 0"),
+    ("rules", "SELECT rub_per_lr, valid_from, rule_version FROM public.reward_rules LIMIT 0"),
+)
+
+
+def database_failure_kind(exc):
+    state = getattr(exc, "sqlstate", None)
+    known = {"28P01": "password_rejected", "28000": "authentication_rejected",
+             "42501": "permission_denied", "42703": "missing_column",
+             "42P01": "missing_table", "3D000": "missing_database"}
+    if state in known:
+        return known[state]
+    # Inspect locally; the original message must never reach logs or the client.
+    message = str(exc).lower()
+    patterns = (
+        ("root certificate file", "tls_root_certificate"),
+        ("could not read root certificate", "tls_root_certificate"),
+        ("certificate verify failed", "tls_certificate_verification"),
+        ("does not match host name", "tls_hostname_mismatch"),
+        ("password authentication failed", "password_rejected"),
+        ("tenant or user not found", "pooler_identity"),
+        ("could not translate host name", "dns_lookup"),
+        ("name or service not known", "dns_lookup"),
+        ("timeout", "connection_timeout"),
+        ("connection refused", "connection_refused"),
+        ("invalid sslmode", "invalid_connection_string"),
+        ("invalid uri", "invalid_connection_string"),
+        ("missing \"=\"", "invalid_connection_string"),
+        ("invalid percent-encoded token", "invalid_connection_string"),
+    )
+    for fragment, category in patterns:
+        if fragment in message:
+            return category
+    return "database_error"
+
+
+def log_database_failure(exc, phase):
+    logger.error("Cabinet database check failed: phase=%s category=%s",
+                 phase, database_failure_kind(exc))
+
+
+def check_database_startup():
+    database = os.getenv("DATABASE_URL", "")
+    if not database:
+        logger.warning("Cabinet database startup check skipped: database_not_configured")
+        return
+    phase = "connect"
+    try:
+        with psycopg.connect(database, connect_timeout=5, row_factory=dict_row) as conn:
+            conn.execute("SET TRANSACTION READ ONLY")
+            conn.execute("SET LOCAL statement_timeout = '5s'")
+            for phase, query in _DATABASE_CHECKS:
+                conn.execute(query)
+        logger.info("Cabinet database startup check passed")
+    except psycopg.Error as exc:
+        log_database_failure(exc, phase)
+
+
+@asynccontextmanager
+async def lifespan(application):
+    check_database_startup()
+    yield
+
+
+app = FastAPI(title="LEROY Designer Cabinet", docs_url=None, redoc_url=None,
+              openapi_url=None, lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -47,11 +118,13 @@ def cabinet(authorization: str | None = Header(default=None)):
         telegram_id = verify_init_data(authorization[4:], token)
     except ValueError:
         raise HTTPException(401, "Вход истёк или не подтверждён. Откройте кабинет заново") from None
+    phase = "connect"
     try:
         with psycopg.connect(database, connect_timeout=5, row_factory=dict_row) as conn:
             with conn.transaction():
                 conn.execute("SET TRANSACTION READ ONLY")
                 conn.execute("SET LOCAL statement_timeout = '5s'")
+                phase = "designer"
                 designer = conn.execute(
                     "SELECT designer_id, full_name, level_code FROM public.designers "
                     "WHERE telegram_id = %s AND is_active = true", (telegram_id,)
@@ -60,31 +133,37 @@ def cabinet(authorization: str | None = Header(default=None)):
                     raise HTTPException(403, "Ваш Telegram ещё не привязан к карточке дизайнера. Обратитесь к менеджеру")
                 did = designer["designer_id"]
                 # Accrued amounts only: there is no payout/debit ledger yet.
+                phase = "balance"
                 balance = conn.execute(
                     "SELECT COALESCE(SUM(amount) FILTER (WHERE currency = 'RUB'), 0) AS commission_rub, "
                     "COALESCE(SUM(amount) FILTER (WHERE currency = 'LR'), 0) AS bonus_lr "
                     "FROM public.ledger_entries WHERE designer_id = %s", (did,)
                 ).fetchone()
+                phase = "operations"
                 operations = conn.execute(
                     "SELECT e.operation_type, e.currency, e.amount, e.event_at, p.order_number "
                     "FROM public.ledger_entries e LEFT JOIN public.projects p ON p.project_id = e.project_id "
                     "WHERE e.designer_id = %s ORDER BY e.event_at DESC, e.entry_id DESC LIMIT 30", (did,)
                 ).fetchall()
+                phase = "projects"
                 projects = conn.execute(
                     "SELECT order_number, amount_rub, status, delivered_at FROM public.projects "
                     "WHERE designer_id = %s ORDER BY created_at DESC, project_id DESC LIMIT 30", (did,)
                 ).fetchall()
                 # Dashboard totals cover every project, independently of the 30-row list.
+                phase = "project_summary"
                 project_summary = conn.execute(
                     "SELECT COUNT(*) FILTER (WHERE status = 'in_progress') AS active, "
                     "COUNT(*) FILTER (WHERE status = 'delivered') AS delivered, COUNT(*) AS total, "
                     "COALESCE(SUM(amount_rub) FILTER (WHERE status <> 'cancelled'), 0) AS total_amount_rub "
                     "FROM public.projects WHERE designer_id = %s", (did,)
                 ).fetchone()
+                phase = "rules"
                 rule = conn.execute(
                     "SELECT rub_per_lr FROM public.reward_rules WHERE valid_from <= now() "
                     "ORDER BY valid_from DESC, rule_version DESC LIMIT 1"
                 ).fetchone()
+                phase = "referrals"
                 referrals = conn.execute(
                     "SELECT COUNT(*) AS count FROM public.designers WHERE invited_by = %s", (did,)
                 ).fetchone()["count"]
@@ -92,9 +171,8 @@ def cabinet(authorization: str | None = Header(default=None)):
                         "projects": projects, "project_summary": project_summary,
                         "rub_per_lr": rule["rub_per_lr"] if rule else None,
                         "loyalty": None, "referral_count": referrals, "test_mode": True}
-    except psycopg.Error:
-        # Do not log DSNs, credentials, auth headers or database error messages.
-        logger.error("Cabinet database request failed")
+    except psycopg.Error as exc:
+        log_database_failure(exc, phase)
         raise HTTPException(503, "База временно недоступна. Попробуйте позже") from None
 
 
