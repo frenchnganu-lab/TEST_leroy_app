@@ -106,7 +106,8 @@ def reply(chat_id, text, markup):
 
 def contact_keyboard():
     return {'keyboard': [[{'text': 'Поделиться номером', 'request_contact': True}]],
-            'resize_keyboard': True, 'one_time_keyboard': True}
+            'resize_keyboard': True, 'one_time_keyboard': True,
+            'input_field_placeholder': 'Для входа нажмите кнопку «Поделиться номером»'}
 
 
 def process_update(update):
@@ -122,13 +123,26 @@ def process_update(update):
         return
     contact = message.get('contact')
     if contact is None:
-        reply(uid, 'Добро пожаловать в LEROY! Для привязки кабинета передайте свой номер кнопкой ниже. '
-              'Мы сопоставим его с вашей карточкой дизайнера.', contact_keyboard())
+        text = message.get('text', '')
+        if isinstance(text, str) and text.strip().split(' ', 1)[0].split('@', 1)[0] == '/start':
+            prompt = ('Добро пожаловать в LEROY!\n\n'
+                      'Чтобы открыть свой кабинет:\n'
+                      '1. Нажмите «Поделиться номером» — большую кнопку под полем сообщения.\n'
+                      '2. Подтвердите передачу номера в окне Telegram.\n\n'
+                      'Вводить номер вручную не нужно. Telegram передаст номер вашего аккаунта, '
+                      'а мы найдём вашу карточку дизайнера.')
+        else:
+            prompt = ('Номер, написанный сообщением, не подтверждает, что он принадлежит вам.\n\n'
+                      'Нажмите «Поделиться номером» — большую кнопку под полем сообщения, '
+                      'затем подтвердите передачу номера в окне Telegram.\n\n'
+                      'Если кнопка скрыта, раскройте клавиатуру бота рядом с полем сообщения.')
+        reply(uid, prompt, contact_keyboard())
         return
     if (not isinstance(contact, dict) or not positive_id(contact.get('user_id'))
             or contact.get('user_id') != uid or message.get('forward_origin')
             or message.get('forward_date')):
-        reply(uid, 'Нужен ваш собственный контакт. Нажмите «Поделиться номером» ниже.', contact_keyboard())
+        reply(uid, 'Этот контакт не подходит для подтверждения. Нажмите «Поделиться номером» '
+              'под полем сообщения и подтвердите передачу своего номера в Telegram.', contact_keyboard())
         return
     try:
         digits = phone_digits(contact.get('phone_number'))
