@@ -12,6 +12,7 @@ from psycopg.rows import dict_row
 from psycopg.conninfo import conninfo_to_dict
 
 from .auth import verify_init_data
+from .telegram_bot import router as telegram_router, configure_webhook
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -124,11 +125,14 @@ def check_database_startup():
 @asynccontextmanager
 async def lifespan(application):
     check_database_startup()
+    configure_webhook()
     yield
 
 
 app = FastAPI(title="LEROY Designer Cabinet", docs_url=None, redoc_url=None,
               openapi_url=None, lifespan=lifespan)
+
+app.include_router(telegram_router)
 
 
 @app.middleware("http")
@@ -224,3 +228,4 @@ def cabinet(authorization: str | None = Header(default=None)):
 static = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 if static.is_dir():
     app.mount("/", StaticFiles(directory=static, html=True), name="frontend")
+
