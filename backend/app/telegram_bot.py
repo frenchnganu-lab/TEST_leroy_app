@@ -12,6 +12,8 @@ import psycopg
 from fastapi import APIRouter, Header, HTTPException
 from psycopg.rows import dict_row
 
+from . import registration
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -79,6 +81,7 @@ def configure_webhook():
             'max_connections': 1,
         })
         logger.warning('Telegram onboarding webhook configured')
+        logger.warning('Telegram automatic registration: %s', 'enabled' if registration.enabled() else 'disabled')
     except (ValueError, RuntimeError):
         logger.error('Telegram onboarding webhook configuration failed')
 
@@ -120,6 +123,10 @@ def process_update(update):
     uid = sender.get('id')
     if (not positive_id(uid) or sender.get('is_bot') is True
             or chat.get('type') != 'private' or chat.get('id') != uid):
+        return
+    if registration.enabled():
+        registration.process(uid, message, update.get('update_id'), send=reply,
+                             contact_keyboard=contact_keyboard, phone_digits=phone_digits, app_url=app_url)
         return
     contact = message.get('contact')
     if contact is None:
