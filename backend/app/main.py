@@ -8,6 +8,7 @@ import psycopg
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 from psycopg.rows import dict_row
 from psycopg.conninfo import conninfo_to_dict
 
@@ -238,9 +239,55 @@ def cabinet(authorization: str | None = Header(default=None)):
         raise HTTPException(503, "База временно недоступна. Попробуйте позже") from None
 
 
+class MentionSubmission(BaseModel):
+    publication_url: str = Field(min_length=1, max_length=2048)
+
+
+def mention_identity(authorization):
+    if not authorization or not authorization.startswith("tma "):
+        raise HTTPException(401, "Откройте кабинет через Telegram")
+    token = os.getenv("BOT_TOKEN", "")
+    if not token or not os.getenv("DATABASE_URL"):
+        raise HTTPException(503, "Подключение кабинета ещё не настроено")
+    try:
+        return verify_init_data(authorization[4:], token)
+    except ValueError:
+        raise HTTPException(401, "Вход истёк. Откройте кабинет заново") from None
+
+
+def mention_query(uid, url=None):
+    try:
+        with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=5, row_factory=dict_row) as conn:
+            conn.execute("SET TRANSACTION READ WRITE" if url is not None else "SET TRANSACTION READ ONLY")
+            conn.execute("SET LOCAL statement_timeout = '5s'")
+            conn.execute("SET LOCAL lock_timeout = '2s'")
+            if url is None:
+                return conn.execute("SELECT * FROM leroy_private.get_mention_requests(%s)", (uid,)).fetchall()
+            return conn.execute("SELECT * FROM leroy_private.submit_mention_request(%s, %s)", (uid, url)).fetchone()
+    except psycopg.errors.RaiseException as exc:
+        allowed = {"Активный дизайнер не найден", "Некорректная ссылка",
+                   "Нужна ссылка Instagram на публикацию или Reels", "Предыдущая отметка ещё не зачтена"}
+        message = exc.diag.message_primary
+        raise HTTPException(400, message if message in allowed else "Не удалось отправить заявку") from None
+    except psycopg.Error as exc:
+        log_database_failure(exc, "mentions")
+        raise HTTPException(503, "Не удалось подтвердить сохранение. Обновите список перед повторной отправкой") from None
+
+
+@app.get("/api/mentions")
+def get_mentions(authorization: str | None = Header(default=None)):
+    return {"requests": mention_query(mention_identity(authorization))}
+
+
+@app.post("/api/mentions")
+def submit_mention(body: MentionSubmission, authorization: str | None = Header(default=None)):
+    return {"request": mention_query(mention_identity(authorization), body.publication_url)}
+
+
 static = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 if static.is_dir():
     app.mount("/", StaticFiles(directory=static, html=True), name="frontend")
+
 
 
 
