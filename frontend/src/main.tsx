@@ -78,45 +78,76 @@ function Referrals({ data }: { data: Cabinet }) {
   </section>;
 }
 
+type MentionRequest = { request_id: string; publication_url: string; status: "pending" | "accepted" | "needs_revision"; review_comment: string | null; created_at: string };
 function Mentions({ demoMode }: { demoMode: boolean }) {
   const [url, setUrl] = useState("");
-  const [status, setStatus] = useState("new");
-  const [sentUrl, setSentUrl] = useState("");
+  const [requests, setRequests] = useState<MentionRequest[]>([]);
   const [error, setError] = useState("");
-  const input = useRef<HTMLInputElement>(null);
-  const pending = status === "pending";
-  function submit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!demoMode || pending) return;
-    try {
-      const parsed = new URL(url.trim());
-      if (parsed.protocol !== "https:" || parsed.username || parsed.password) throw new Error();
-      setSentUrl(parsed.href); setStatus("pending"); setError("");
-    } catch { setError("Введите полную ссылку, начинающуюся с https://"); input.current?.focus(); }
+  const [loading, setLoading] = useState(!demoMode);
+  const [sending, setSending] = useState(false);
+  const [ready, setReady] = useState(demoMode);
+  const busy = useRef(false);
+  const open = requests.find(r => r.status !== "accepted");
+  const current = open || requests[0];
+  async function api(method: string, body?: object) {
+    const response = await fetch("/api/mentions", { method, cache: "no-store",
+      headers: { Authorization: `tma ${window.Telegram?.WebApp.initData || ""}`, "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "Не удалось загрузить отметки");
+    return result;
   }
+  async function refresh() {
+    if (demoMode) return;
+    setLoading(true);
+    try { const result = await api("GET"); setRequests(result.requests); setReady(true); setError(""); }
+    catch (e) { setReady(false); setError(e instanceof Error ? e.message : "Ошибка соединения"); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { void refresh(); }, [demoMode]);
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy.current || open || !ready) return;
+    if (!/^https:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/[A-Za-z0-9_-]+\/?([?#]\S*)?$/.test(url.trim())) {
+      setError("Укажите ссылку Instagram на пост или Reels"); return;
+    }
+    busy.current = true; setSending(true); setError("");
+    try {
+      if (demoMode) {
+        setRequests([{ request_id: "demo", publication_url: url.trim(), status: "pending", review_comment: null, created_at: new Date().toISOString() }, ...requests]);
+      } else {
+        const result = await api("POST", { publication_url: url.trim() });
+        setRequests(old => [result.request, ...old.filter(r => r.request_id !== result.request.request_id)]);
+      }
+      setUrl("");
+    } catch (e) { setError(e instanceof Error ? e.message : "Ошибка соединения"); if (!demoMode) setReady(false); }
+    finally { busy.current = false; setSending(false); }
+  }
+  const label = (status: string) => status === "accepted" ? "Зачтено" : status === "needs_revision" ? "Нужна правка" : "В работе";
   return <section className="page mentions-page">
     <span className="eyebrow gold">LEROY HOME CLUB</span><h1>Отметки</h1>
-    <p className="page-description">Поделитесь публикацией, в которой вы рассказали о LEROY. После проверки здесь появится результат.</p>
-    {demoMode ? <div className="notice">Демонстрация интерфейса. Ссылки не сохраняются и не отправляются на проверку.</div> :
-      <div className="notice">Отправка ссылок скоро появится. Пока передавайте публикации менеджеру привычным способом.</div>}
-    <form className="panel mention-form" onSubmit={submit}>
+    <p className="page-description">Отправьте публикацию с обзором LEROY. После проверки здесь появится результат.</p>
+    {demoMode && <div className="notice">Демонстрация. Ссылки не сохраняются и не отправляются на проверку.</div>}
+    {!demoMode && <button className="text-button" disabled={loading || sending} onClick={() => void refresh()}>{loading ? "Загрузка…" : "Обновить статус"}</button>}
+    <form className="panel mention-form" onSubmit={e => void submit(e)}>
       <label htmlFor="mention-url">Ссылка на публикацию</label>
-      <input ref={input} id="mention-url" type="url" inputMode="url" placeholder="https://www.instagram.com/p/…" value={url} onChange={e => setUrl(e.target.value)} disabled={!demoMode || pending} aria-describedby="mention-help mention-error" />
-      <p id="mention-help" className="small">Прикрепите ссылку на свой пост с обзором LEROY. Следующая отправка доступна после зачтения предыдущей отметки.</p>
-      <p id="mention-error" role="alert">{error}</p>
-      <button className="button gold-button full" disabled={!demoMode || pending} type="submit">{pending ? "Ожидает проверки" : "Отправить на проверку"}</button>
+      <input id="mention-url" type="url" inputMode="url" placeholder="https://www.instagram.com/p/…" value={url} onChange={e => setUrl(e.target.value)} disabled={!!open || loading || sending || !ready} aria-describedby="mention-help" />
+      <p id="mention-help" className="small">Следующая отправка доступна после зачтения предыдущей отметки.</p>
+      <button className="button gold-button full" disabled={!!open || loading || sending || !ready} type="submit">{sending ? "Отправка…" : open ? "Ожидает проверки" : "Отправить на проверку"}</button>
     </form>
-    {status !== "new" && <article className="panel mention-status" aria-live="polite">
-      <span className={`badge ${status === "accepted" ? "delivered" : ""}`}>{status === "accepted" ? "Зачтено" : status === "revision" ? "Нужна правка" : "В работе"}</span>
-      <h2>{status === "accepted" ? "Публикация принята" : status === "revision" ? "Проверьте публикацию" : "Ссылка отправлена на проверку"}</h2>
-      <p className="mention-address">{sentUrl}</p>
-      {status === "revision" && <p><strong>Комментарий проверяющего</strong><br />Уточните ссылку: публикация должна быть доступна для просмотра. Это пример комментария.</p>}
-      {status === "accepted" && <p>Начисление бонуса отображается в разделе «Бонусы».</p>}
+    {error && <p role="alert">{error}</p>}
+    {current && <article className="panel mention-status" aria-live="polite">
+      <span className={`badge ${current.status === "accepted" ? "delivered" : ""}`}>{label(current.status)}</span>
+      <h2>{current.status === "accepted" ? "Публикация принята" : "Ваша публикация"}</h2>
+      <a className="mention-address" href={current.publication_url} target="_blank" rel="noopener noreferrer">{current.publication_url}</a>
+      <p className="small">{date(current.created_at)} · {current.request_id}</p>
+      {current.review_comment && <p><strong>Комментарий проверяющего</strong><br />{current.review_comment}</p>}
+      {current.status === "accepted" && <p>Начисление бонуса отображается в разделе «Бонусы».</p>}
     </article>}
-    {demoMode && <div className="mention-preview"><p className="small">Предпросмотр состояний — только для демо</p>
-      <div className="filters">{[["pending", "В работе"], ["accepted", "Зачтено"], ["revision", "Нужна правка"]].map(([key, label]) => <button key={key} className={status === key ? "selected" : ""} onClick={() => {setStatus(key); setSentUrl(sentUrl || "Пример публикации");}}>{label}</button>)}</div></div>}
+    {demoMode && current && <div className="filters">{["pending", "accepted", "needs_revision"].map(status => <button key={status} onClick={() => setRequests(old => old.map(r => r.request_id === current.request_id ? {...r, status: status as MentionRequest["status"], review_comment: status === "needs_revision" ? "Пример: проверьте доступность публикации" : null} : r))}>{label(status)}</button>)}</div>}
     <h2 className="mention-history-title">Зачтённые отметки</h2>
-    <Empty icon="mention" title="Здесь будет ваша история" text="После подключения проверки здесь появятся ранее зачтённые публикации." />
+    {requests.filter(r => r.status === "accepted").map(r => <article className="panel mention-status" key={r.request_id}><span className="badge delivered">Зачтено</span><p>{date(r.created_at)}</p><a className="mention-address" href={r.publication_url} target="_blank" rel="noopener noreferrer">{r.publication_url}</a></article>)}
+    {!loading && ready && !requests.some(r => r.status === "accepted") && <Empty icon="mention" title="Пока нет зачтённых отметок" text="Здесь появятся публикации после подтверждения." />}
   </section>;
 }
 
@@ -1017,5 +1048,6 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
+
 
 
