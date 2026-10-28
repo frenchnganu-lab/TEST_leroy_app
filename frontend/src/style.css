@@ -512,7 +512,7 @@ p {
   backdrop-filter: blur(16px);
   border-top: 1px solid #ffffff08;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   padding: 11px 12px calc(10px + env(safe-area-inset-bottom, 0px));
   min-height: 74px;
 }
@@ -1277,3 +1277,23 @@ p {
     animation: none !important;
   }
 }
+
+
+.bottom-nav button { font-size: 8px; overflow-wrap: anywhere; }
+.referral-total { display: flex; align-items: center; gap: 14px; padding: 20px; margin-bottom: 20px; color: var(--gold); }
+.referral-total span { flex: 1; font-size: 12px; color: var(--muted); }
+.referral-total strong { font-size: 30px; }
+.invited-list { list-style: none; padding: 0 16px; margin: 0 0 24px; }
+.invited-list li { display: flex; align-items: center; gap: 12px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.invited-list li:last-child { border-bottom: 0; }
+.invited-list li > div { flex: 1; min-width: 0; }
+.invited-list strong { font-size: 12px; overflow-wrap: anywhere; }
+.invited-list small { display: block; font-size: 10px; color: var(--muted); margin-top: 6px; }
+.invited-list svg { color: var(--gold); }
+.invited-avatar { display: grid; place-items: center; background: #d7b77a15; color: var(--gold); width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; }
+.referral-link-card { padding: 22px; margin-top: 24px; }
+.referral-link-card > svg { color: var(--gold); margin-bottom: 16px; }
+.referral-link-card input { width: 100%; min-width: 0; margin: 12px 0 16px; padding: 14px; background: #101110; color: var(--gold); border: 1px solid #d7b77a40; border-radius: 8px; font: inherit; font-size: 12px; }
+.referral-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.referral-actions > * { flex: 1; }
+.referral-link-card [role=status]:empty { display: none; }
