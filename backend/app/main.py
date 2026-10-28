@@ -145,6 +145,16 @@ async def security_headers(request, call_next):
     return response
 
 
+def referral_url(designer_id):
+    import re
+    username = os.getenv("TELEGRAM_BOT_USERNAME", "").lstrip("@")
+    if (os.getenv("REFERRALS_ENABLED", "false").lower() != "true"
+            or not re.fullmatch(r"[A-Za-z0-9_]{5,32}", username)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,60}", designer_id)):
+        return None
+    return f"https://t.me/{username}?start=ref_{designer_id}"
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
@@ -222,7 +232,7 @@ def cabinet(authorization: str | None = Header(default=None)):
                         "projects": projects, "project_summary": project_summary,
                         "rub_per_lr": rule["rub_per_lr"] if rule else None,
                         "loyalty": None, "referral_count": len(referrals), "referrals": referrals,
-                        "referral_url": None, "test_mode": True}
+                        "referral_url": referral_url(did), "test_mode": True}
     except psycopg.Error as exc:
         log_database_failure(exc, phase)
         raise HTTPException(503, "База временно недоступна. Попробуйте позже") from None
@@ -231,5 +241,6 @@ def cabinet(authorization: str | None = Header(default=None)):
 static = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 if static.is_dir():
     app.mount("/", StaticFiles(directory=static, html=True), name="frontend")
+
 
 
