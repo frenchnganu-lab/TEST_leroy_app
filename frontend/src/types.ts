@@ -30,6 +30,8 @@ export type Cabinet = {
   projects: Project[];
   operations: Operation[];
   referral_count: number;
+  referrals?: { designer_id: string; full_name: string; created_at: string | null }[];
+  referral_url?: string | null;
   test_mode: boolean;
 };
 declare global {
@@ -45,3 +47,4 @@ declare global {
     };
   }
 }
+
