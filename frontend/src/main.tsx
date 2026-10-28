@@ -34,7 +34,7 @@ const statuses: Record<string, string> = {
 const tabs = [
   { label: "Главная", icon: "home" },
   { label: "Проекты", icon: "projects" },
-  { label: "Клиенты", icon: "clients" },
+  { label: "Рекламные отметки", icon: "mention" },
   { label: "Бонусы", icon: "bonus" },
   { label: "Профиль", icon: "profile" },
   { label: "Приглашённые", icon: "link" },
@@ -75,6 +75,48 @@ function Referrals({ data }: { data: Cabinet }) {
       </> : <p>Приглашения по ссылке готовятся к запуску. Здесь появится ваша персональная ссылка.</p>}
       <p role="status" aria-live="polite">{message}</p>
     </div>
+  </section>;
+}
+
+function Mentions({ demoMode }: { demoMode: boolean }) {
+  const [url, setUrl] = useState("");
+  const [status, setStatus] = useState("new");
+  const [sentUrl, setSentUrl] = useState("");
+  const [error, setError] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+  const pending = status === "pending";
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!demoMode || pending) return;
+    try {
+      const parsed = new URL(url.trim());
+      if (parsed.protocol !== "https:" || parsed.username || parsed.password) throw new Error();
+      setSentUrl(parsed.href); setStatus("pending"); setError("");
+    } catch { setError("Введите полную ссылку, начинающуюся с https://"); input.current?.focus(); }
+  }
+  return <section className="page mentions-page">
+    <span className="eyebrow gold">LEROY HOME CLUB</span><h1>Рекламные отметки</h1>
+    <p className="page-description">Поделитесь публикацией, в которой вы рассказали о LEROY. После проверки здесь появится результат.</p>
+    {demoMode ? <div className="notice">Демонстрация интерфейса. Ссылки не сохраняются и не отправляются на проверку.</div> :
+      <div className="notice">Отправка ссылок скоро появится. Пока передавайте публикации менеджеру привычным способом.</div>}
+    <form className="panel mention-form" onSubmit={submit}>
+      <label htmlFor="mention-url">Ссылка на публикацию</label>
+      <input ref={input} id="mention-url" type="url" inputMode="url" placeholder="https://www.instagram.com/p/…" value={url} onChange={e => setUrl(e.target.value)} disabled={!demoMode || pending} aria-describedby="mention-help mention-error" />
+      <p id="mention-help" className="small">Прикрепите ссылку на свой пост с обзором LEROY. Следующая отправка доступна после зачтения предыдущей отметки.</p>
+      <p id="mention-error" role="alert">{error}</p>
+      <button className="button gold-button full" disabled={!demoMode || pending} type="submit">{pending ? "Ожидает проверки" : "Отправить на проверку"}</button>
+    </form>
+    {status !== "new" && <article className="panel mention-status" aria-live="polite">
+      <span className={`badge ${status === "accepted" ? "delivered" : ""}`}>{status === "accepted" ? "Зачтено" : status === "revision" ? "Нужна правка" : "В работе"}</span>
+      <h2>{status === "accepted" ? "Публикация принята" : status === "revision" ? "Проверьте публикацию" : "Ссылка отправлена на проверку"}</h2>
+      <p className="mention-address">{sentUrl}</p>
+      {status === "revision" && <p><strong>Комментарий проверяющего</strong><br />Уточните ссылку: публикация должна быть доступна для просмотра. Это пример комментария.</p>}
+      {status === "accepted" && <p>Начисление бонуса отображается в разделе «Бонусы».</p>}
+    </article>}
+    {demoMode && <div className="mention-preview"><p className="small">Предпросмотр состояний — только для демо</p>
+      <div className="filters">{[["pending", "В работе"], ["accepted", "Зачтено"], ["revision", "Нужна правка"]].map(([key, label]) => <button key={key} className={status === key ? "selected" : ""} onClick={() => {setStatus(key); setSentUrl(sentUrl || "Пример публикации");}}>{label}</button>)}</div></div>}
+    <h2 className="mention-history-title">Зачтённые отметки</h2>
+    <Empty icon="mention" title="Здесь будет ваша история" text="После подключения проверки здесь появятся ранее зачтённые публикации." />
   </section>;
 }
 
@@ -773,6 +815,7 @@ function App() {
                 )}
               </section>
             )}
+            {tab === "Рекламные отметки" && <Mentions demoMode={isDemo} />}
             {tab === "Приглашённые" && <Referrals data={data} />}
           </main>
           <nav className="bottom-nav" aria-label="Основная навигация">
@@ -795,7 +838,7 @@ function App() {
           {sheet === "menu" && (
             <div className="menu-list">
               {data &&
-                tabs.map((t) => (
+                [...tabs, { label: "Клиенты", icon: "clients" }].map((t) => (
                   <button key={t.label} onClick={() => navigate(t.label)}>
                     <Icon name={t.icon} />
                     {t.label}
@@ -974,4 +1017,5 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
+
 
