@@ -37,7 +37,46 @@ const tabs = [
   { label: "Клиенты", icon: "clients" },
   { label: "Бонусы", icon: "bonus" },
   { label: "Профиль", icon: "profile" },
+  { label: "Приглашённые", icon: "link" },
 ];
+
+function Referrals({ data }: { data: Cabinet }) {
+  const [message, setMessage] = useState("");
+  const link = data.referral_url;
+  const invited = data.referrals;
+  async function copy() {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      setMessage("Ссылка скопирована");
+    } catch {
+      setMessage("Выделите ссылку ниже и скопируйте вручную");
+    }
+  }
+  return <section className="page referral-page">
+    <span className="eyebrow gold">LEROY HOME CLUB</span>
+    <h1>Приглашённые</h1>
+    <p className="page-description">Дизайнеры, зарегистрированные и закреплённые за вами.</p>
+    <div className="panel referral-total"><Icon name="clients" size={28} /><span>Ваши приглашённые</span><strong>{data.referral_count}</strong></div>
+    {invited === undefined ? <div className="notice">Список пока недоступен. Обновите кабинет после обновления сервера.</div> : invited.length === 0 ?
+      <Empty icon="clients" title="Пока никого нет" text="Здесь появятся дизайнеры после регистрации и закрепления приглашения за вами." /> :
+      <ul className="panel invited-list">{invited.map(person => <li key={person.designer_id}>
+        <span className="invited-avatar" aria-hidden="true">{person.full_name.trim().slice(0, 1)}</span>
+        <div><strong>{person.full_name}</strong><small>{person.created_at ? `Регистрация: ${date(person.created_at)}` : "Регистрация подтверждена"}</small></div>
+        <Icon name="check" size={20} />
+      </li>)}</ul>}
+    <div className="panel referral-link-card">
+      <Icon name="link" /><h2>Ваша реферальная ссылка</h2>
+      {link ? <>
+        <label htmlFor="referral-url" className="small muted">Отправьте её дизайнеру</label>
+        <input id="referral-url" readOnly value={link} onFocus={e => e.target.select()} />
+        <div className="referral-actions"><button className="button gold-button" onClick={() => void copy()}>Копировать</button>
+        <a className="button outline-button" target="_blank" rel="noopener noreferrer" href={`https://t.me/share/url?url=${encodeURIComponent(link)}`}>Поделиться</a></div>
+      </> : <p>Приглашения по ссылке готовятся к запуску. Здесь появится ваша персональная ссылка.</p>}
+      <p role="status" aria-live="polite">{message}</p>
+    </div>
+  </section>;
+}
 
 type Sheet =
   | "menu"
@@ -705,7 +744,7 @@ function App() {
                   </dl>
                 </div>
                 <div className="panel profile-links">
-                  <button onClick={() => setSheet("referrals")}>
+                  <button onClick={() => navigate("Приглашённые")}>
                     <Icon name="clients" />
                     <span>
                       Пригласить дизайнера
@@ -734,6 +773,7 @@ function App() {
                 )}
               </section>
             )}
+            {tab === "Приглашённые" && <Referrals data={data} />}
           </main>
           <nav className="bottom-nav" aria-label="Основная навигация">
             {tabs.map((t) => (
@@ -897,23 +937,7 @@ function App() {
               </p>
             </div>
           )}
-          {sheet === "referrals" && data && (
-            <div className="prose">
-              <div className="referral-count">
-                <Icon name="clients" size={35} />
-                <strong>{data.referral_count}</strong>
-                <span>приглашённых дизайнеров</span>
-              </div>
-              <p>
-                За первый сданный проект приглашённого предусмотрен бонус 10%
-                его суммы в эквиваленте LR.
-              </p>
-              <div className="notice">
-                Персональная ссылка и автоматическое начисление за рефералов ещё
-                не подключены.
-              </div>
-            </div>
-          )}
+          {sheet === "referrals" && data && <Referrals data={data} />}
           {sheet === "project" && project && (
             <>
               <span className={`badge ${project.status}`}>
@@ -950,3 +974,4 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
+
