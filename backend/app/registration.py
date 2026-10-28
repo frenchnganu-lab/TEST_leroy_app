@@ -1,5 +1,6 @@
 """Automatic registration uses only phone proofs received from Telegram."""
 import os
+import re
 import unicodedata
 
 import psycopg
@@ -23,7 +24,7 @@ def normalize_name(text):
     return text
 
 
-def advance(uid, action, update_id, digits=None, name=None):
+def advance(uid, action, update_id, digits=None, name=None, referrer=None):
     database = os.getenv('DATABASE_URL', '')
     if not database:
         raise RuntimeError('database_not_configured')
@@ -31,9 +32,14 @@ def advance(uid, action, update_id, digits=None, name=None):
         conn.execute('SET TRANSACTION READ WRITE')
         conn.execute("SET LOCAL statement_timeout = '5s'")
         conn.execute("SET LOCAL lock_timeout = '2s'")
+        use_referrals = os.getenv('REFERRALS_ENABLED', 'false').lower() == 'true'
+        query = ('SELECT leroy_private.onboard_designer_referral(%s, %s, %s, %s, %s, %s) AS result'
+                 if use_referrals else 'SELECT leroy_private.onboard_designer(%s, %s, %s, %s, %s) AS result')
+        params = (uid, action, digits, name, update_id)
+        if use_referrals:
+            params += (referrer,)
         result = conn.execute(
-            'SELECT leroy_private.onboard_designer(%s, %s, %s, %s, %s) AS result',
-            (uid, action, digits, name, update_id),
+            query, params,
         ).fetchone()['result']
     return result
 
@@ -72,7 +78,15 @@ def process(uid, message, update_id, *, send, contact_keyboard, phone_digits, ap
             action, name = 'text', normalize_name(text)
     else:
         action = 'resume'
-    result = advance(uid, action, update_id, digits, name)
+    referrer = None
+    if action == 'resume' and isinstance(text, str):
+        parts = text.strip().split()
+        if len(parts) == 2 and re.fullmatch(r'ref_[A-Za-z0-9_-]{1,60}', parts[1]):
+            referrer = parts[1][4:]
+    if referrer is not None:
+        result = advance(uid, action, update_id, digits, name, referrer=referrer)
+    else:
+        result = advance(uid, action, update_id, digits, name)
     status = result.get('status')
     if status in ('bound', 'already_bound', 'registered'):
         send(uid, 'Ваш кабинет готов. Добро пожаловать в LEROY!',
@@ -97,3 +111,4 @@ def process(uid, message, update_id, *, send, contact_keyboard, phone_digits, ap
     else:
         send(uid, 'Не удалось привязать профиль. Обратитесь к менеджеру LEROY: '
              'нужно уточнить существующую карточку или доступ.', {'remove_keyboard': True})
+
