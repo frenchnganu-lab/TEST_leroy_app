@@ -69,5 +69,11 @@ export const demo: Cabinet = {
     },
   ],
   referral_count: 2,
+  referrals: [
+    { designer_id: "demo-invited-1", full_name: "Анна Смирнова", created_at: "2026-10-20T09:00:00Z" },
+    { designer_id: "demo-invited-2", full_name: "Михаил Волков", created_at: "2026-10-18T09:00:00Z" },
+  ],
+  referral_url: null,
   test_mode: true,
 };
+
