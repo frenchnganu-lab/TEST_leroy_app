@@ -34,7 +34,7 @@ const statuses: Record<string, string> = {
 const tabs = [
   { label: "Главная", icon: "home" },
   { label: "Проекты", icon: "projects" },
-  { label: "Рекламные отметки", icon: "mention" },
+  { label: "Отметки", icon: "mention" },
   { label: "Бонусы", icon: "bonus" },
   { label: "Профиль", icon: "profile" },
   { label: "Приглашённые", icon: "link" },
@@ -95,7 +95,7 @@ function Mentions({ demoMode }: { demoMode: boolean }) {
     } catch { setError("Введите полную ссылку, начинающуюся с https://"); input.current?.focus(); }
   }
   return <section className="page mentions-page">
-    <span className="eyebrow gold">LEROY HOME CLUB</span><h1>Рекламные отметки</h1>
+    <span className="eyebrow gold">LEROY HOME CLUB</span><h1>Отметки</h1>
     <p className="page-description">Поделитесь публикацией, в которой вы рассказали о LEROY. После проверки здесь появится результат.</p>
     {demoMode ? <div className="notice">Демонстрация интерфейса. Ссылки не сохраняются и не отправляются на проверку.</div> :
       <div className="notice">Отправка ссылок скоро появится. Пока передавайте публикации менеджеру привычным способом.</div>}
@@ -815,7 +815,7 @@ function App() {
                 )}
               </section>
             )}
-            {tab === "Рекламные отметки" && <Mentions demoMode={isDemo} />}
+            {tab === "Отметки" && <Mentions demoMode={isDemo} />}
             {tab === "Приглашённые" && <Referrals data={data} />}
           </main>
           <nav className="bottom-nav" aria-label="Основная навигация">
