@@ -1297,3 +1297,16 @@ p {
 .referral-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .referral-actions > * { flex: 1; }
 .referral-link-card [role=status]:empty { display: none; }
+
+.mention-form, .mention-status { padding: 22px; margin-top: 20px; }
+.mention-form label { display: block; font-size: 13px; margin-bottom: 12px; }
+.mention-form input { width: 100%; padding: 14px; border-radius: 9px; border: 1px solid #d7b77a40; background: #101110; color: inherit; font: inherit; font-size: 12px; }
+.mention-form input:focus-visible { outline: 2px solid var(--gold); }
+.mention-form :disabled { opacity: .5; cursor: not-allowed; }
+.mention-form [role=alert]:empty { display: none; }
+.mention-form [role=alert] { color: #e8aaa0; }
+.mention-status h2 { margin-top: 18px; }
+.mention-address { overflow-wrap: anywhere; }
+.mention-preview { margin-top: 24px; }
+.mention-history-title { margin-top: 30px; }
+.bottom-nav button span { max-width: 100%; line-height: 1.3; }
