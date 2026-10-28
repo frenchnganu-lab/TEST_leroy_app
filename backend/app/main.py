@@ -214,12 +214,15 @@ def cabinet(authorization: str | None = Header(default=None)):
                 ).fetchone()
                 phase = "referrals"
                 referrals = conn.execute(
-                    "SELECT COUNT(*) AS count FROM public.designers WHERE invited_by = %s", (did,)
-                ).fetchone()["count"]
+                    "SELECT designer_id, full_name, created_at FROM public.designers "
+                    "WHERE invited_by = %s AND telegram_id IS NOT NULL "
+                    "ORDER BY created_at DESC, designer_id", (did,)
+                ).fetchall()
                 return {"designer": designer, "balance": balance, "operations": operations,
                         "projects": projects, "project_summary": project_summary,
                         "rub_per_lr": rule["rub_per_lr"] if rule else None,
-                        "loyalty": None, "referral_count": referrals, "test_mode": True}
+                        "loyalty": None, "referral_count": len(referrals), "referrals": referrals,
+                        "referral_url": None, "test_mode": True}
     except psycopg.Error as exc:
         log_database_failure(exc, phase)
         raise HTTPException(503, "База временно недоступна. Попробуйте позже") from None
@@ -228,4 +231,5 @@ def cabinet(authorization: str | None = Header(default=None)):
 static = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 if static.is_dir():
     app.mount("/", StaticFiles(directory=static, html=True), name="frontend")
+
 
