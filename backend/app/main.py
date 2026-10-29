@@ -284,9 +284,43 @@ def submit_mention(body: MentionSubmission, authorization: str | None = Header(d
     return {"request": mention_query(mention_identity(authorization), body.publication_url)}
 
 
+class InvitationAcceptance(BaseModel):
+    publication_id: str = Field(min_length=1, max_length=100)
+
+
+def publication_query(uid, publication_id=None):
+    try:
+        with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=5, row_factory=dict_row) as conn:
+            conn.execute("SET TRANSACTION READ WRITE" if publication_id is not None else "SET TRANSACTION READ ONLY")
+            conn.execute("SET LOCAL statement_timeout = '5s'")
+            conn.execute("SET LOCAL lock_timeout = '2s'")
+            if publication_id is None:
+                return conn.execute("SELECT * FROM leroy_private.get_club_publications(%s)", (uid,)).fetchall()
+            return conn.execute("SELECT * FROM leroy_private.accept_club_invitation(%s, %s)", (uid, publication_id)).fetchone()
+    except psycopg.errors.RaiseException as exc:
+        allowed = {"Активный дизайнер не найден", "Мероприятие не найдено",
+                   "Приглашение доступно только для мероприятий", "Приём приглашений сейчас закрыт"}
+        message = exc.diag.message_primary
+        raise HTTPException(400, message if message in allowed else "Не удалось принять приглашение") from None
+    except psycopg.Error as exc:
+        log_database_failure(exc, "publications")
+        raise HTTPException(503, "Не удалось подтвердить результат. Обновите список событий") from None
+
+
+@app.get("/api/publications")
+def get_publications(authorization: str | None = Header(default=None)):
+    return {"publications": publication_query(mention_identity(authorization))}
+
+
+@app.post("/api/publications/accept")
+def accept_publication(body: InvitationAcceptance, authorization: str | None = Header(default=None)):
+    return {"invitation": publication_query(mention_identity(authorization), body.publication_id)}
+
+
 static = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 if static.is_dir():
     app.mount("/", StaticFiles(directory=static, html=True), name="frontend")
+
 
 
 

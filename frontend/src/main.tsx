@@ -151,6 +151,72 @@ function Mentions({ demoMode }: { demoMode: boolean }) {
   </section>;
 }
 
+type ClubPublication = {
+  publication_id: string; publication_type: "news" | "event" | "promotion";
+  title: string; synopsis: string; body: string; image_url: string | null;
+  event_label: string | null; button_label: string | null;
+  invitation_accepted: boolean; accepted_at: string | null;
+};
+function PublicationImage({ src, title }: { src: string; title: string }) {
+  const [failed, setFailed] = useState(false);
+  return failed ? null : <img className="publication-cover" src={src} alt={title} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />;
+}
+function Publications({ demoMode, featured = false, onAll }: { demoMode: boolean; featured?: boolean; onAll?: () => void }) {
+  const [items, setItems] = useState<ClubPublication[]>([]);
+  const [loading, setLoading] = useState(!demoMode);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const lock = useRef(false);
+  async function api(path: string, publicationId?: string) {
+    const response = await fetch(path, { method: publicationId ? "POST" : "GET", cache: "no-store",
+      headers: { Authorization: `tma ${window.Telegram?.WebApp.initData || ""}`, "Content-Type": "application/json" },
+      body: publicationId ? JSON.stringify({ publication_id: publicationId }) : undefined });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "Не удалось загрузить события");
+    return result;
+  }
+  async function refresh() {
+    if (demoMode) return;
+    setLoading(true);
+    try { const result = await api("/api/publications"); setItems(result.publications); setError(""); }
+    catch (e) { setError(e instanceof Error ? e.message : "Ошибка соединения"); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { void refresh(); }, [demoMode]);
+  async function accept(id: string) {
+    if (lock.current || demoMode) return;
+    lock.current = true; setBusy(id); setError("");
+    try {
+      const result = await api("/api/publications/accept", id);
+      setItems(old => old.map(item => item.publication_id === id ? {...item, invitation_accepted: true, accepted_at: result.invitation.accepted_at} : item));
+    } catch (e) { setError(e instanceof Error ? e.message : "Ошибка соединения"); }
+    finally { lock.current = false; setBusy(null); }
+  }
+  const names = { news: "Новость", event: "Мероприятие", promotion: "Акция" };
+  return <section className={featured ? "publications-home" : "publications-list"}>
+    {featured && <div className="section-title"><h2>События клуба</h2><button className="text-button" onClick={onAll}>Все события <Icon name="chevron" size={14} /></button></div>}
+    {!featured && !demoMode && <button className="text-button" onClick={() => void refresh()} disabled={loading || !!busy}>{loading ? "Загрузка…" : "Обновить события"}</button>}
+    {loading && <p role="status">Загружаем события…</p>}
+    {error && <div role="alert" className="notice">{error}{featured && <button className="text-button" onClick={() => void refresh()} disabled={loading}>Повторить</button>}</div>}
+    {demoMode && <p className="notice">В демо приглашения не сохраняются. Реальные события доступны в Telegram-кабинете.</p>}
+    {(featured ? items.slice(0, 1) : items).map(item => <article className="panel publication-card" key={item.publication_id}>
+      {item.image_url && /^https:\/\//i.test(item.image_url) && <PublicationImage key={item.image_url} src={item.image_url} title={item.title} />}
+      <div className="publication-copy"><span className="badge">{names[item.publication_type]}</span>
+        {item.event_label && <p className="publication-date">{item.event_label}</p>}
+        <h2>{item.title}</h2><p>{item.synopsis}</p>
+        {item.body && <details><summary>Подробнее</summary><p className="publication-body">{item.body}</p></details>}
+        {item.publication_type === "event" && <>
+          <button className="button gold-button full" disabled={item.invitation_accepted || !!busy || loading} onClick={() => void accept(item.publication_id)}>
+            {item.invitation_accepted ? "Вы приглашены ✓" : busy === item.publication_id ? "Сохраняем…" : item.button_label || "Принять приглашение"}
+          </button>
+          {item.invitation_accepted && <p className="small" role="status">Приглашение принято. Будем рады видеть вас на мероприятии.</p>}
+        </>}
+      </div>
+    </article>)}
+    {!loading && !error && !demoMode && items.length === 0 && <p className="muted">Новых анонсов пока нет. Загляните позже.</p>}
+  </section>;
+}
+
 type Sheet =
   | "menu"
   | "notifications"
@@ -594,6 +660,7 @@ function App() {
                     </button>
                   </div>
                 </section>
+                <Publications demoMode={isDemo} featured onAll={() => setSheet("events")} />
                 <button
                   className="club-banner"
                   onClick={() => setSheet("rules")}
@@ -895,13 +962,7 @@ function App() {
               text="Здесь появятся новости клуба и сообщения о ваших проектах."
             />
           )}
-          {sheet === "events" && (
-            <Empty
-              icon="gift"
-              title="Скоро новые встречи"
-              text="Опубликованных событий пока нет. Анонсы мероприятий и акций появятся здесь."
-            />
-          )}
+          {sheet === "events" && data && <Publications demoMode={isDemo} />}
           {sheet === "balance" && (
             <div className="prose">
               <p>
@@ -1048,6 +1109,7 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
+
 
 
 

@@ -1315,3 +1315,17 @@ p {
 .bottom-nav button { justify-content: flex-start; }
 .bottom-nav button > svg { flex-shrink: 0; }
 .bottom-nav button > span { display: block; min-height: 24px; }
+
+
+.publications-home { margin: 24px 20px; }
+.publications-list { display: grid; gap: 16px; }
+.publication-card { overflow: hidden; margin-bottom: 16px; }
+.publication-cover { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+.publication-copy { padding: 20px; }
+.publication-copy h2 { margin-top: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.publication-date { color: var(--gold); margin: 12px 0 0; }
+.publication-copy details { margin: 18px 0; }
+.publication-copy summary { color: var(--gold); cursor: pointer; font-size: 12px; min-height: 30px; }
+.publication-body { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 12px; }
+.publication-copy .button { margin-top: 12px; }
+.publication-copy button:disabled { opacity: .65; cursor: default; }
