@@ -192,16 +192,16 @@ def cabinet(authorization: str | None = Header(default=None)):
                 if not designer:
                     raise HTTPException(403, "Ваш Telegram ещё не привязан к карточке дизайнера. Обратитесь к менеджеру")
                 did = designer["designer_id"]
-                # Accrued amounts only: there is no payout/debit ledger yet.
+                # Authenticated Telegram ID scopes totals and full settlements.
                 phase = "balance"
                 balance = conn.execute(
-                    "SELECT COALESCE(SUM(amount) FILTER (WHERE currency = 'RUB'), 0) AS commission_rub, "
-                    "COALESCE(SUM(amount) FILTER (WHERE currency = 'LR'), 0) AS bonus_lr "
-                    "FROM public.ledger_entries WHERE designer_id = %s", (did,)
+                    "SELECT commission_remaining_rub AS commission_rub, bonus_remaining_lr AS bonus_lr, "
+                    "commission_accrued_rub, commission_paid_rub, bonus_accrued_lr, bonus_redeemed_lr "
+                    "FROM leroy_private.get_settlement_balance(%s)", (telegram_id,)
                 ).fetchone()
                 phase = "operations"
                 operations = conn.execute(
-                    "SELECT e.operation_type, e.currency, e.amount, e.event_at, p.order_number "
+                    "SELECT e.operation_type, e.currency, e.amount, e.event_at, e.settled_at, e.settled_amount, p.order_number "
                     "FROM public.ledger_entries e LEFT JOIN public.projects p ON p.project_id = e.project_id "
                     "WHERE e.designer_id = %s ORDER BY e.event_at DESC, e.entry_id DESC LIMIT 30", (did,)
                 ).fetchall()
@@ -320,6 +320,7 @@ def accept_publication(body: InvitationAcceptance, authorization: str | None = H
 static = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 if static.is_dir():
     app.mount("/", StaticFiles(directory=static, html=True), name="frontend")
+
 
 
 

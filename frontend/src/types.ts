@@ -10,10 +10,16 @@ export type Operation = {
   amount: number;
   event_at: string;
   order_number?: string | null;
+  settled_at?: string | null;
+  settled_amount?: number | null;
 };
 export type Cabinet = {
   designer: { designer_id: string; full_name: string; level_code: string };
-  balance: { commission_rub: number; bonus_lr: number };
+  balance: {
+    commission_rub: number; bonus_lr: number;
+    commission_accrued_rub?: number; commission_paid_rub?: number;
+    bonus_accrued_lr?: number; bonus_redeemed_lr?: number;
+  };
   project_summary: {
     active: number;
     delivered: number;
@@ -47,4 +53,5 @@ declare global {
     };
   }
 }
+
 

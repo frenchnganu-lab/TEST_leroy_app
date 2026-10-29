@@ -481,7 +481,7 @@ function App() {
                   <div className="hero-photo" />
                   <div className="hero-content">
                     <div className="hero-label">
-                      Ваши бонусы{" "}
+                      Остаток бонусов{" "}
                       <button
                         className="inline-icon"
                         aria-label="Как устроен баланс"
@@ -496,7 +496,8 @@ function App() {
                         L
                       </span>
                     </div>
-                    <div className="balance-unit">LR · всего начислено</div>
+                    <div className="balance-unit">LR · остаток после обналичивания</div>
+                    <p className="small">Начислено: {format(data.balance.bonus_accrued_lr ?? data.balance.bonus_lr)} LR<br />Обналичено: {format(data.balance.bonus_redeemed_lr ?? 0)} LR</p>
                     <p className="exchange gold">
                       {data.rub_per_lr && data.rub_per_lr > 0 ? (
                         <>
@@ -532,7 +533,7 @@ function App() {
                     <Icon name="ruble" size={20} />
                   </span>
                   <span>
-                    Вознаграждение за проекты<small>Всего начислено</small>
+                    Вознаграждение за проекты<small>Остаток после выплат</small>
                   </span>
                   <strong>{format(data.balance.commission_rub)} ₽</strong>
                   <Icon name="chevron" size={16} />
@@ -775,16 +776,20 @@ function App() {
                 <h1>Бонусы и начисления</h1>
                 <div className="mini-balances">
                   <div className="panel">
-                    <small>Бонусы</small>
+                    <small>Остаток бонусов</small>
                     <strong>
                       {format(data.balance.bonus_lr)} <em>LR</em>
                     </strong>
+                    <small>Начислено: {format(data.balance.bonus_accrued_lr ?? data.balance.bonus_lr)} LR</small>
+                    <small>Обналичено: {format(data.balance.bonus_redeemed_lr ?? 0)} LR</small>
                   </div>
                   <div className="panel">
-                    <small>Вознаграждение</small>
+                    <small>Остаток вознаграждения</small>
                     <strong>
                       {format(data.balance.commission_rub)} <em>₽</em>
                     </strong>
+                    <small>Начислено: {format(data.balance.commission_accrued_rub ?? data.balance.commission_rub)} ₽</small>
+                    <small>Выплачено: {format(data.balance.commission_paid_rub ?? 0)} ₽</small>
                   </div>
                 </div>
                 <button
@@ -834,6 +839,7 @@ function App() {
                             {date(o.event_at)}
                             {o.order_number ? ` · ${o.order_number}` : ""}
                           </small>
+                          {o.settled_at && <small className="gold">{o.currency === "RUB" ? "Выплачено" : "Обналичено"} полностью · {date(o.settled_at)}</small>}
                         </div>
                         <b>
                           +{format(o.amount)}
@@ -850,8 +856,7 @@ function App() {
                   )}
                 </div>
                 <p className="footnote">
-                  Даты указаны по времени Красноярска. Выплаты и конвертация
-                  пока недоступны.
+                  Даты указаны по времени Красноярска. Здесь отражаются выплаты, подтверждённые менеджером. Перевод денег оформляется отдельно.
                 </p>
               </section>
             )}
@@ -976,9 +981,11 @@ function App() {
                   : "В тестовой модели 5 LR = 1 ₽."}
               </p>
               <p>
-                Сейчас показываем всего начисленное. Денежный эквивалент бонусов
-                не означает, что эта сумма уже доступна для вывода. Выплаты,
-                списания и конвертация будут подключены отдельно.
+                Крупная сумма показывает остаток после подтверждённых выплат.
+                «Начислено» сохраняет общую историю, а «Выплачено» и «Обналичено»
+                показывают уже погашенные операции. Денежный эквивалент оставшихся LR
+                рассчитан по текущему курсу и не является суммой прошлых переводов.
+                Условия и сроки выплаты уточняйте у менеджера.
               </p>
               <p>Вес уровня учитывается отдельно от LR.</p>
             </div>
@@ -1109,6 +1116,7 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
+
 
 
 
