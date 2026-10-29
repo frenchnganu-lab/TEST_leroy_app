@@ -86,6 +86,11 @@ def test_all_data_queries_are_scoped_to_authenticated_designer(monkeypatch):
             if 'SELECT rub_per_lr' in query:
                 assert params is None  # Global program rate; contains no designer data.
                 return Result({'rub_per_lr': 0.2})
+            if 'get_settlement_balance' in query:
+                assert params == (123456,)
+                return Result({'commission_rub': 6000, 'bonus_lr': 11000,
+                  'commission_accrued_rub': 10000, 'commission_paid_rub': 4000,
+                  'bonus_accrued_lr': 21000, 'bonus_redeemed_lr': 10000})
             if query.startswith('SELECT'):
                 assert params == ('OWN',)
                 if 'SUM(amount)' in query:
@@ -103,8 +108,15 @@ def test_all_data_queries_are_scoped_to_authenticated_designer(monkeypatch):
     response = TestClient(app).get('/api/cabinet?designer_id=OTHER', headers={'Authorization': 'tma signed'})
     assert response.status_code == 200
     assert response.json()['designer']['designer_id'] == 'OWN'
+    balance = response.json()['balance']
+    assert balance['bonus_lr'] == 11000
+    assert balance['bonus_accrued_lr'] == balance['bonus_lr'] + balance['bonus_redeemed_lr']
+    assert balance['commission_accrued_rub'] == balance['commission_rub'] + balance['commission_paid_rub']
+    assert any('e.settled_at' in q and p == ('OWN',) for q, p in queries)
     assert len([q for q, p in queries if q.startswith('SELECT')]) == 7
     assert response.json()['project_summary']['total'] == 47
     assert response.json()['projects'] == []
     assert response.json()['rub_per_lr'] == 0.2
     assert response.json()['loyalty'] is None
+
+
