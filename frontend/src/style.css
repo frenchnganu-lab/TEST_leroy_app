@@ -103,18 +103,16 @@ p {
   border-bottom: 1px solid #ffffff04;
 }
 .brand {
-  text-align: center;
-  line-height: 1;
-  font-size: 31px;
-  font-weight: 500;
-  letter-spacing: 2px;
-}
-.brand span {
   display: block;
-  font-size: 11px;
-  letter-spacing: 3.8px;
-  color: var(--gold);
-  padding-top: 7px;
+  width: min(180px, calc(100vw - 152px));
+  min-width: 0;
+  line-height: 0;
+}
+.brand-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  mix-blend-mode: screen;
 }
 .icon-button {
   display: grid;

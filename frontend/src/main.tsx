@@ -416,7 +416,7 @@ function App() {
             }
           }}
         >
-          LEROY<span>HOME CLUB</span>
+          <img className="brand-logo" src="/images/leroy-home-official.jpeg" alt="LEROY HOME" width="994" height="369" />
         </a>
         <button
           className="icon-button gold"
