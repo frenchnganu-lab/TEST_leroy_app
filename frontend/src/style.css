@@ -1327,3 +1327,9 @@ p {
 .publication-body { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 12px; }
 .publication-copy .button { margin-top: 12px; }
 .publication-copy button:disabled { opacity: .65; cursor: default; }
+
+.projects-summary .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.accrual-categories { padding: 20px; margin-bottom: 20px; }
+.accrual-categories h2 { font-size: 18px; margin-bottom: 15px; }
+.category-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #ffffff12; font-size: 13px; }
+.category-row strong { white-space: nowrap; }

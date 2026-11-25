@@ -6,7 +6,8 @@ export const demo: Cabinet = {
     full_name: "Александра Миронова",
     level_code: "bronze",
   },
-  balance: { commission_rub: 1500, bonus_lr: 45000 },
+  balance: { commission_rub: 1500, bonus_lr: 35000, commission_accrued_rub: 1500, commission_paid_rub: 0, bonus_accrued_lr: 35000, bonus_redeemed_lr: 0 },
+  category_totals: [{operation_type: "project_share", currency: "RUB", amount: 1500}, {operation_type: "project_bonus", currency: "LR", amount: 25000}, {operation_type: "mention_bonus", currency: "LR", amount: 10000}],
   rub_per_lr: 0.2,
   loyalty: {
     weight: 320,
@@ -41,12 +42,6 @@ export const demo: Cabinet = {
     },
   ],
   operations: [
-    {
-      operation_type: "event_bonus",
-      currency: "LR",
-      amount: 10000,
-      event_at: "2026-10-19T12:00:00+07:00",
-    },
     {
       operation_type: "mention_bonus",
       currency: "LR",

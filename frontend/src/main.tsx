@@ -17,6 +17,7 @@ const levels: Record<string, string> = {
   silver: "Серебряный",
   gold: "Золотой",
   platinum: "Платиновый",
+  diamond: "Бриллиантовый",
 };
 const names: Record<string, string> = {
   project_share: "Вознаграждение за проект",
@@ -533,7 +534,7 @@ function App() {
                     <Icon name="ruble" size={20} />
                   </span>
                   <span>
-                    Вознаграждение за проекты<small>Остаток после выплат</small>
+                    Вознаграждение за проекты<small>Начислено: {format(data.balance.commission_accrued_rub ?? 0)} ₽ · Выплачено: {format(data.balance.commission_paid_rub ?? 0)} ₽</small>
                   </span>
                   <strong>{format(data.balance.commission_rub)} ₽</strong>
                   <Icon name="chevron" size={16} />
@@ -553,7 +554,8 @@ function App() {
                         <Icon name="diamond" size={35} />
                       </span>
                     </button>
-                    {data.designer.level_code === "platinum" ? (
+                    <p className="status-caption">Текущий вес: <strong>{format(loyalty?.weight ?? 0)}</strong></p>
+                    {data.designer.level_code === "diamond" ? (
                       <p className="status-caption">
                         Максимальный уровень клуба
                       </p>
@@ -642,24 +644,14 @@ function App() {
                       <strong>{data.project_summary.delivered}</strong>
                       <span>завершено</span>
                     </button>
-                    <button
-                      className="stat-card"
-                      onClick={() => {
-                        setFilter("all");
-                        navigate("Проекты");
-                      }}
-                    >
-                      <span className="stat-icon">
-                        <Icon name="ruble" />
-                      </span>
-                      <strong className="stat-amount">
-                        {format(data.project_summary.total_amount_rub)} ₽
-                      </strong>
-                      <span>
-                        сумма заказов<small>без отменённых</small>
-                      </span>
-                    </button>
                   </div>
+                </section>
+                <section className="panel accrual-categories"><h2>Начислено по категориям</h2>
+                  {(["project_share", "project_bonus", "mention_bonus", "referral_bonus"] as const).map(type => {
+                    const currency = type === "project_share" ? "RUB" : "LR";
+                    const total = data.category_totals?.find(c => c.operation_type === type)?.amount ?? 0;
+                    return <div className="category-row" key={type}><span>{names[type]}</span><strong>{format(total)} {currency === "RUB" ? "₽" : "LR"}</strong></div>;
+                  })}
                 </section>
                 <Publications demoMode={isDemo} featured onAll={() => setSheet("events")} />
                 <button
@@ -740,7 +732,7 @@ function App() {
                         </div>
                         <h2>Заказ {p.order_number}</h2>
                         <div className="project-bottom">
-                          <strong>{format(p.amount_rub)} ₽</strong>
+
                           <span>
                             Подробнее <Icon name="chevron" size={14} />
                           </span>
@@ -1002,8 +994,7 @@ function App() {
                 <>
                   <p>
                     Зачтено <strong>{format(loyalty.weight)} весов</strong>.
-                    Следующий уровень —{" "}
-                    {levels[loyalty.next_level]?.toLowerCase()}.
+                    {data.designer.level_code === "diamond" ? " Максимальный уровень клуба." : <> Следующий уровень — {levels[loyalty.next_level]?.toLowerCase()}.</>}
                   </p>
                   <p>
                     Период: {loyalty.period}.
@@ -1012,7 +1003,7 @@ function App() {
                 </>
               ) : (
                 <p>
-                  {data.designer.level_code === "platinum"
+                  {data.designer.level_code === "diamond"
                     ? "Вы на максимальном уровне клуба."
                     : "Подсчёт весов ещё не подключён к кабинету. Текущий статус получен из вашей карточки."}
                 </p>
@@ -1027,6 +1018,7 @@ function App() {
                   ["Серебряный", "500 весов"],
                   ["Золотой", "2 000 весов"],
                   ["Платиновый", "5 000 весов"],
+                  ["Бриллиантовый", "8 500 весов"],
                 ].map(([n, v]) => (
                   <div key={n}>
                     <span>{n}</span>
@@ -1035,8 +1027,7 @@ function App() {
                 ))}
               </div>
               <p className="footnote">
-                Пороги тестовой модели. Автоматическое повышение и период зачёта
-                проверим до рабочего запуска.
+                Вес накапливается за всё время участия. Статус и вес обновляются после синхронизации.
               </p>
             </div>
           )}
@@ -1048,8 +1039,7 @@ function App() {
                 <div>
                   <h3>За реализованные проекты</h3>
                   <p>
-                    Денежное вознаграждение зависит от уровня. Бонус за закрытый
-                    проект — 10% его суммы в эквиваленте LR.
+                    Вознаграждение и бонус за закрытый проект начисляются в согласованной сумме после проверки менеджером. Бонус переводится из рублей в LR по курсу программы.
                   </p>
                 </div>
               </div>
@@ -1058,8 +1048,7 @@ function App() {
                 <div>
                   <h3>За участие и рекомендации</h3>
                   <p>
-                    Рекламная отметка и участие в мероприятии — по 2 000 ₽ в
-                    эквиваленте LR за подтверждённое событие.
+                    За подтверждённую рекламную отметку — 2 000 ₽ в эквиваленте LR. За мероприятия бонусы не начисляются.
                   </p>
                 </div>
               </div>
@@ -1069,7 +1058,7 @@ function App() {
                   <h3>За приглашённого дизайнера</h3>
                   <p>
                     Предусмотрено 10% от суммы его первого сданного проекта в
-                    эквиваленте LR. Автоматическое начисление ещё не подключено.
+                    эквиваленте LR после подтверждения первого закрытого проекта.
                   </p>
                 </div>
               </div>
@@ -1089,10 +1078,6 @@ function App() {
                 <div>
                   <dt>Номер заказа</dt>
                   <dd>{project.order_number}</dd>
-                </div>
-                <div>
-                  <dt>Сумма</dt>
-                  <dd>{format(project.amount_rub)} ₽</dd>
                 </div>
                 {project.delivered_at && (
                   <div>

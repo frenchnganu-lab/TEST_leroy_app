@@ -1,6 +1,6 @@
 export type Project = {
   order_number: string;
-  amount_rub: number;
+  amount_rub?: number;
   status: string;
   delivered_at?: string | null;
 };
@@ -24,7 +24,7 @@ export type Cabinet = {
     active: number;
     delivered: number;
     total: number;
-    total_amount_rub: number;
+    total_amount_rub?: number;
   };
   rub_per_lr: number | null;
   loyalty: {
@@ -33,6 +33,7 @@ export type Cabinet = {
     next_threshold: number;
     period: string;
   } | null;
+  category_totals?: { operation_type: string; currency: string; amount: number }[];
   projects: Project[];
   operations: Operation[];
   referral_count: number;

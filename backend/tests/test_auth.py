@@ -82,7 +82,7 @@ def test_all_data_queries_are_scoped_to_authenticated_designer(monkeypatch):
             queries.append((query, params))
             if 'WHERE telegram_id' in query:
                 assert params == (123456,)
-                return Result({'designer_id': 'OWN', 'full_name': 'Test', 'level_code': 'bronze'})
+                return Result({'designer_id': 'OWN', 'full_name': 'Test', 'level_code': 'bronze', 'loyalty_weight': 320})
             if 'SELECT rub_per_lr' in query:
                 assert params is None  # Global program rate; contains no designer data.
                 return Result({'rub_per_lr': 0.2})
@@ -95,8 +95,8 @@ def test_all_data_queries_are_scoped_to_authenticated_designer(monkeypatch):
                 assert params == ('OWN',)
                 if 'SUM(amount)' in query:
                     return Result({'commission_rub': 0, 'bonus_lr': 0})
-                if 'AS total_amount_rub' in query:
-                    return Result({'active': 35, 'delivered': 12, 'total': 47, 'total_amount_rub': 999000})
+                if 'AS delivered' in query:
+                    return Result({'active': 35, 'delivered': 12, 'total': 47})
                 if 'COUNT(*)' in query:
                     return Result({'count': 0})
                 return Result(many=[])
@@ -113,10 +113,13 @@ def test_all_data_queries_are_scoped_to_authenticated_designer(monkeypatch):
     assert balance['bonus_accrued_lr'] == balance['bonus_lr'] + balance['bonus_redeemed_lr']
     assert balance['commission_accrued_rub'] == balance['commission_rub'] + balance['commission_paid_rub']
     assert any('e.settled_at' in q and p == ('OWN',) for q, p in queries)
-    assert len([q for q, p in queries if q.startswith('SELECT')]) == 7
+    assert len([q for q, p in queries if q.startswith('SELECT')]) == 8
     assert response.json()['project_summary']['total'] == 47
     assert response.json()['projects'] == []
     assert response.json()['rub_per_lr'] == 0.2
-    assert response.json()['loyalty'] is None
+    assert response.json()['loyalty']['weight'] == 320
+    assert response.json()['loyalty']['next_threshold'] == 500
+    assert 'total_amount_rub' not in response.json()['project_summary']
+    assert response.json()['category_totals'] == []
 
 

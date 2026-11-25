@@ -186,7 +186,7 @@ def cabinet(authorization: str | None = Header(default=None)):
                 conn.execute("SET LOCAL statement_timeout = '5s'")
                 phase = "designer"
                 designer = conn.execute(
-                    "SELECT designer_id, full_name, level_code FROM public.designers "
+                    "SELECT designer_id, full_name, level_code, loyalty_weight FROM public.designers "
                     "WHERE telegram_id = %s AND is_active = true", (telegram_id,)
                 ).fetchone()
                 if not designer:
@@ -207,17 +207,28 @@ def cabinet(authorization: str | None = Header(default=None)):
                 ).fetchall()
                 phase = "projects"
                 projects = conn.execute(
-                    "SELECT order_number, amount_rub, status, delivered_at FROM public.projects "
+                    "SELECT order_number, status, delivered_at FROM public.projects "
                     "WHERE designer_id = %s ORDER BY created_at DESC, project_id DESC LIMIT 30", (did,)
                 ).fetchall()
                 # Dashboard totals cover every project, independently of the 30-row list.
                 phase = "project_summary"
                 project_summary = conn.execute(
                     "SELECT COUNT(*) FILTER (WHERE status = 'in_progress') AS active, "
-                    "COUNT(*) FILTER (WHERE status = 'delivered') AS delivered, COUNT(*) AS total, "
-                    "COALESCE(SUM(amount_rub) FILTER (WHERE status <> 'cancelled'), 0) AS total_amount_rub "
+                    "COUNT(*) FILTER (WHERE status = 'delivered') AS delivered, COUNT(*) AS total "
                     "FROM public.projects WHERE designer_id = %s", (did,)
                 ).fetchone()
+                categories = conn.execute(
+                    "SELECT operation_type, currency, sum(amount) AS amount FROM public.ledger_entries "
+                    "WHERE designer_id = %s GROUP BY operation_type, currency", (did,)
+                ).fetchall()
+                thresholds = [("silver", 500), ("gold", 2000), ("platinum", 5000), ("diamond", 8500)]
+                weight = designer["loyalty_weight"]
+                order = ["bronze", "silver", "gold", "platinum", "diamond"]
+                idx = order.index(designer["level_code"])
+                next_step = thresholds[idx] if idx < len(thresholds) else None
+                loyalty = {"weight": weight, "next_level": next_step[0] if next_step else "diamond",
+                           "next_threshold": next_step[1] if next_step else 8500,
+                           "period": "За всё время участия"}
                 phase = "rules"
                 rule = conn.execute(
                     "SELECT rub_per_lr FROM public.reward_rules WHERE valid_from <= now() "
@@ -232,7 +243,7 @@ def cabinet(authorization: str | None = Header(default=None)):
                 return {"designer": designer, "balance": balance, "operations": operations,
                         "projects": projects, "project_summary": project_summary,
                         "rub_per_lr": rule["rub_per_lr"] if rule else None,
-                        "loyalty": None, "referral_count": len(referrals), "referrals": referrals,
+                        "loyalty": loyalty, "category_totals": categories, "referral_count": len(referrals), "referrals": referrals,
                         "referral_url": referral_url(did), "test_mode": True}
     except psycopg.Error as exc:
         log_database_failure(exc, phase)
