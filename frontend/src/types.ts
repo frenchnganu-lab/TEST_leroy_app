@@ -12,6 +12,7 @@ export type Operation = {
   order_number?: string | null;
   settled_at?: string | null;
   settled_amount?: number | null;
+  paid_rub?: number | null;
 };
 export type Cabinet = {
   designer: { designer_id: string; full_name: string; level_code: string };

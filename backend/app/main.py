@@ -201,7 +201,8 @@ def cabinet(authorization: str | None = Header(default=None)):
                 ).fetchone()
                 phase = "operations"
                 operations = conn.execute(
-                    "SELECT e.operation_type, e.currency, e.amount, e.event_at, e.settled_at, e.settled_amount, p.order_number "
+                    "SELECT e.operation_type, e.currency, e.amount, e.event_at, e.settled_at, e.settled_amount, p.order_number, "
+                    "round(e.settled_amount * CASE WHEN e.currency = 'LR' THEN e.rub_per_lr ELSE 1 END, 2) AS paid_rub "
                     "FROM public.ledger_entries e LEFT JOIN public.projects p ON p.project_id = e.project_id "
                     "WHERE e.designer_id = %s ORDER BY e.event_at DESC, e.entry_id DESC LIMIT 30", (did,)
                 ).fetchall()

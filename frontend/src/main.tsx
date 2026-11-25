@@ -831,7 +831,10 @@ function App() {
                             {date(o.event_at)}
                             {o.order_number ? ` · ${o.order_number}` : ""}
                           </small>
-                          {o.settled_at && <small className="gold">{o.currency === "RUB" ? "Выплачено" : "Обналичено"} полностью · {date(o.settled_at)}</small>}
+                          {Number(o.settled_amount) > 0 && <small className="gold">
+                            {o.settled_at ? "Выплачено полностью" : "Выплачено частично"} · {format(Number(o.paid_rub))} ₽
+                            {o.settled_at ? ` · ${date(o.settled_at)}` : ""}
+                          </small>}
                         </div>
                         <b>
                           +{format(o.amount)}
