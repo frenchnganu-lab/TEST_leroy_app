@@ -141,7 +141,7 @@ async def security_headers(request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
-    if request.url.path.startswith("/api/"):
+    if request.url.path.startswith("/api/") or request.url.path in ("/", "/index.html"):
         response.headers["Cache-Control"] = "no-store"
     return response
 
