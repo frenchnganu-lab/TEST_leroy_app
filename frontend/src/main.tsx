@@ -471,8 +471,7 @@ function App() {
       ) : (
         <>
           <div className="mode-label">
-            <span className="status-dot" />
-            {isDemo ? "Демо · вымышленные данные" : "Тестовый кабинет"}
+            {isDemo && <><span className="status-dot" />Демо · вымышленные данные</>}
             <span className="mode-right">LEROY HOME CLUB</span>
           </div>
           <main id="main-content">
