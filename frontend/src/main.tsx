@@ -379,13 +379,6 @@ function App() {
     data?.operations.filter(
       (o) => operationFilter === "all" || o.currency === operationFilter,
     ) || [];
-  const loyalty = data?.loyalty;
-  const progress = loyalty
-    ? Math.min(
-        100,
-        Math.max(0, (loyalty.weight / loyalty.next_threshold) * 100),
-      )
-    : 0;
   const titles: Record<NonNullable<Sheet>, string> = {
     menu: "Клуб LEROY",
     notifications: "Уведомления",
@@ -553,40 +546,7 @@ function App() {
                         <Icon name="diamond" size={35} />
                       </span>
                     </button>
-                    <p className="status-caption">Текущий вес: <strong>{format(loyalty?.weight ?? 0)}</strong></p>
-                    {data.designer.level_code === "diamond" ? (
-                      <p className="status-caption">
-                        Максимальный уровень клуба
-                      </p>
-                    ) : loyalty ? (
-                      <>
-                        <p className="status-caption">
-                          До следующего статуса —{" "}
-                          {format(
-                            Math.max(
-                              0,
-                              loyalty.next_threshold - loyalty.weight,
-                            ),
-                          )}{" "}
-                          весов
-                        </p>
-                        <div
-                          className="progress"
-                          role="progressbar"
-                          aria-label="Прогресс уровня"
-                          aria-valuenow={Math.round(progress)}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                        >
-                          <span style={{ width: `${progress}%` }} />
-                        </div>
-                        <small className="period">{loyalty.period}</small>
-                      </>
-                    ) : (
-                      <p className="status-caption">
-                        Прогресс появится после подключения весов
-                      </p>
-                    )}
+                    <p className="status-caption">Уровень назначает менеджер.</p>
                   </div>
                   <div className="status-features">
                     <span>
@@ -965,8 +925,8 @@ function App() {
           {sheet === "balance" && (
             <div className="prose">
               <p>
-                <strong>Вознаграждение в рублях</strong> — начисленный процент
-                от суммы проекта. <strong>LR</strong> — отдельная бонусная
+                <strong>Вознаграждение в рублях</strong> — согласованная сумма
+                за участие в конкретном проекте. <strong>LR</strong> — отдельная бонусная
                 валюта за проекты и активности.
               </p>
               <p>
@@ -981,7 +941,6 @@ function App() {
                 рассчитан по текущему курсу и не является суммой прошлых переводов.
                 Условия и сроки выплаты уточняйте у менеджера.
               </p>
-              <p>Вес уровня учитывается отдельно от LR.</p>
             </div>
           )}
           {sheet === "level" && data && (
@@ -992,82 +951,25 @@ function App() {
                   {levels[data.designer.level_code] || data.designer.level_code}
                 </strong>
               </div>
-              {loyalty ? (
-                <>
-                  <p>
-                    Зачтено <strong>{format(loyalty.weight)} весов</strong>.
-                    {data.designer.level_code === "diamond" ? " Максимальный уровень клуба." : <> Следующий уровень — {levels[loyalty.next_level]?.toLowerCase()}.</>}
-                  </p>
-                  <p>
-                    Период: {loyalty.period}.
-                    {isDemo ? " Это пример прогресса для демонстрации." : ""}
-                  </p>
-                </>
-              ) : (
-                <p>
-                  {data.designer.level_code === "diamond"
-                    ? "Вы на максимальном уровне клуба."
-                    : "Подсчёт весов ещё не подключён к кабинету. Текущий статус получен из вашей карточки."}
-                </p>
-              )}
-              <p>
-                Веса отражают участие в программе и достижения. Они учитываются
-                отдельно от суммы бонусов LR.
-              </p>
-              <h3>Пороги и вознаграждение</h3>
+              <p>Менеджер назначает уровень вручную. Ставку по каждому проекту
+                согласовываем отдельно с учётом фактического участия дизайнера.</p>
+              <h3>Ориентиры по уровням</h3>
               <div className="level-ladder">
                 {[
-                  ["Бронзовый", "Стартовый", "5%"],
-                  ["Серебряный", "от 500 весов", "8%"],
-                  ["Золотой", "от 2 000 весов", "10%"],
-                  ["Платиновый", "от 5 000 весов", "13%"],
-                  ["Бриллиантовый", "от 8 500 весов", "18%"],
-                ].map(([name, weight, rate]) => (
+                  ["Бронзовый", "5%"],
+                  ["Серебряный", "8%"],
+                  ["Золотой", "10%"],
+                  ["Платиновый", "13%"],
+                  ["Бриллиантовый", "18%"],
+                ].map(([name, rate]) => (
                   <div key={name}>
-                    <span>{name} · {weight}</span>
+                    <span>{name}</span>
                     <strong>{rate}</strong>
                   </div>
                 ))}
               </div>
-              <p className="muted">Процент указан от суммы проекта.</p>
-              <h3>Как начисляются веса</h3>
-              <p>За каждое полугодие считаем четыре показателя. По каждому берём
-                одну, самую высокую достигнутую ступень, и складываем результат.
-                Если первая ступень не достигнута, показатель даёт 0 весов.</p>
-              {[
-                { title: "Сумма проектов за полугодие", rows: [
-                  ["от 100 000 ₽", 50], ["от 310 000 ₽", 130], ["от 510 000 ₽", 160],
-                  ["от 810 000 ₽", 180], ["от 1 100 000 ₽", 250],
-                  ["от 2 100 000 ₽", 350], ["от 3 600 000 ₽", 400],
-                ] },
-                { title: "Количество проектов", rows: [
-                  [1, 50], [2, 100], [3, 120], [4, 130], [5, 150], [6, 300], [7, 400],
-                ] },
-                { title: "Количество рефералов", rows: [
-                  [1, 100], [2, 150], [3, 200], [4, 250], [5, 300], [6, 350], [7, 400],
-                ] },
-                { title: "Подтверждённые рекламные отметки", rows: [
-                  [5, 50], [10, 100], [13, 150], [18, 200], [22, 250], [30, 300], [35, 350],
-                ] },
-              ].map(({ title, rows }) => (
-                <details key={title} style={{ marginBlock: 12 }}>
-                  <summary style={{ cursor: "pointer", paddingBlock: 8 }}>{title}</summary>
-                  <div className="level-ladder">
-                    {rows.map(([threshold, weight]) => (
-                      <div key={threshold}>
-                        <span>{typeof threshold === "number" ? `от ${threshold}` : threshold}</span>
-                        <strong>{weight} баллов</strong>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              ))}
-              <p><strong>Пример.</strong> Три проекта на общую сумму 900 000 ₽,
-                один реферал и десять подтверждённых отметок дают
-                180 + 120 + 100 + 100 = 500 весов. Этого достаточно для серебряного уровня.</p>
-              <p className="footnote">
-                Вес накапливается за всё время участия. Статус и вес обновляются после синхронизации.
-              </p>
+              <p className="muted">Проценты указаны от суммы проекта и служат
+                ориентиром. Фактическая ставка может отличаться.</p>
             </div>
           )}
           {sheet === "rules" && (
@@ -1078,7 +980,7 @@ function App() {
                 <div>
                   <h3>За реализованные проекты</h3>
                   <p>
-                    Вознаграждение и бонус за закрытый проект начисляются в согласованной сумме после проверки менеджером. Бонус переводится из рублей в LR по курсу программы.
+                    Вознаграждение за проект согласовывается отдельно с учётом участия дизайнера. Вознаграждение и бонус за закрытый проект начисляются после проверки. Бонус переводится из рублей в LR по курсу программы.
                   </p>
                 </div>
               </div>
