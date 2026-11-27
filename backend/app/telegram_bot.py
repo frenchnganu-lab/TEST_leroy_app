@@ -104,6 +104,13 @@ def bind_contact(digits, telegram_id):
 
 
 def reply(chat_id, text, markup):
+    if any(button.get('web_app') for row in markup.get('inline_keyboard', []) for button in row):
+        text += (
+            '\n\nПри открытии кабинета иногда появляется чёрный экран с надписью '
+            'Application Loading. Это сервер запускается и загружает кабинет. '
+            'Подождите немного, и кабинет откроется автоматически. '
+            'Если загрузка затянулась, закройте окно и нажмите «Открыть кабинет» ещё раз.'
+        )
     telegram_call('sendMessage', {'chat_id': chat_id, 'text': text, 'reply_markup': markup})
 
 
